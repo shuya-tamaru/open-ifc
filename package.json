@@ -12,10 +12,18 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "three": "^0.174.0"
+    "@thatopen/components": "^2.4.4",
+    "@thatopen/components-front": "^2.4.4",
+    "@thatopen/fragments": "^2.4.0",
+    "@thatopen/ui": "^2.4.2",
+    "@thatopen/ui-obc": "^2.4.1",
+    "lil-gui": "^0.20.0",
+    "stats.js": "^0.17.0",
+    "three": "^0.160.1",
+    "web-ifc": "^0.0.66"
   },
   "devDependencies": {
-    "@types/three": "^0.174.0",
+    "@types/three": "^0.160.0",
     "typescript": "^5.8.2",
     "vite": "^6.2.0"
   }

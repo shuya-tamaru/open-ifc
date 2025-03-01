@@ -1,41 +1,131 @@
 import "./style.css";
 import * as THREE from "three";
+import * as BUI from "@thatopen/ui";
+import Stats from "stats.js";
+import * as OBC from "@thatopen/components";
+import { setupWorld } from "./setupWorld";
+import { Manager } from "@thatopen/ui";
+import * as WEBIFC from "web-ifc";
+import * as CUI from "@thatopen/ui-obc";
+import * as OBCF from "@thatopen/components-front";
 
-// シーンを作成
-const scene = new THREE.Scene();
+//setup
+const container = document.getElementById("container")!;
+let { worlds, world, components } = setupWorld(container);
+world.camera.controls.setLookAt(12, 6, 8, 0, 0, -10);
 
-// カメラを作成
-const camera = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
+// 軸ヘルパー追加
+const axesHelper = new THREE.AxesHelper(50);
+world.scene.three.add(axesHelper);
+const grids = components.get(OBC.Grids);
+const grid = grids.create(world);
+
+//stats
+const stats = new Stats();
+stats.showPanel(1);
+document.body.append(stats.dom);
+stats.dom.style.left = "0px";
+stats.dom.style.zIndex = "unset";
+
+const fragments = components.get(OBC.FragmentsManager);
+const file = await fetch(
+  "https://thatopen.github.io/engine_components/resources/small.frag"
 );
-camera.position.z = 5;
+const data = await file.arrayBuffer();
+const buffer = new Uint8Array(data);
+const model = fragments.load(buffer);
+world.scene.three.add(model);
 
-// レンダラーを作成
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+const properties = await fetch(
+  "https://thatopen.github.io/engine_components/resources/small.json"
+);
+model.setLocalProperties(await properties.json());
 
-// ジオメトリとマテリアルを作成
-const geometry = new THREE.BoxGeometry();
-const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-const cube = new THREE.Mesh(geometry, material);
-scene.add(cube);
+const indexer = components.get(OBC.IfcRelationsIndexer);
+const relationsFile = await fetch(
+  "https://thatopen.github.io/engine_components/resources/small-relations.json"
+);
+const relations = indexer.getRelationsMapFromJSON(await relationsFile.text());
+indexer.setRelationMap(model, relations);
 
-// アニメーションループ
-const animate = () => {
-  requestAnimationFrame(animate);
-  cube.rotation.x += 0.01;
-  cube.rotation.y += 0.01;
-  renderer.render(scene, camera);
-};
-animate();
+const hider = components.get(OBC.Hider);
 
-// ウィンドウリサイズ対応
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+const classifier = components.get(OBC.Classifier);
+classifier.byEntity(model);
+await classifier.bySpatialStructure(model, {
+  isolate: new Set([WEBIFC.IFCBUILDINGSTOREY]),
 });
+console.log(classifier);
+
+BUI.Manager.init();
+
+const spatialStructures: Record<string, any> = {};
+const structureNames = Object.keys(classifier.list.spatialStructures);
+for (const name of structureNames) {
+  spatialStructures[name] = true;
+}
+
+const classes: Record<string, any> = {};
+const classNames = Object.keys(classifier.list.entities);
+for (const name of classNames) {
+  classes[name] = true;
+}
+
+const panel = BUI.Component.create<BUI.PanelSection>(() => {
+  return BUI.html`
+    <bim-panel active label="Hider Tutorial" class="options-menu">
+      <bim-panel-section collapsed label="Controls">
+      
+      <bim-panel-section collapsed label="Floors" name="Floors"">
+      </bim-panel-section>
+      
+      <bim-panel-section collapsed label="Categories" name="Categories"">
+      </bim-panel-section>
+      
+    </bim-panel>
+  `;
+});
+
+container.append(panel);
+
+const floorSection = panel.querySelector(
+  "bim-panel-section[name='Floors']"
+) as BUI.PanelSection;
+
+const categorySection = panel.querySelector(
+  "bim-panel-section[name='Categories']"
+) as BUI.PanelSection;
+
+for (const name in spatialStructures) {
+  const panel = BUI.Component.create<BUI.Checkbox>(() => {
+    return BUI.html`
+      <bim-checkbox checked label="${name}"
+        @change="${({ target }: { target: BUI.Checkbox }) => {
+          const found = classifier.list.spatialStructures[name];
+          if (found && found.id !== null) {
+            for (const [_id, model] of fragments.groups) {
+              const foundIDs = indexer.getEntityChildren(model, found.id);
+              const fragMap = model.getFragmentMap(foundIDs);
+              hider.set(target.value, fragMap);
+            }
+          }
+        }}">
+      </bim-checkbox>
+    `;
+  });
+  floorSection.append(panel);
+}
+
+for (const name in classes) {
+  const checkbox = BUI.Component.create<BUI.Checkbox>(() => {
+    return BUI.html`
+      <bim-checkbox checked label="${name}"
+        @change="${({ target }: { target: BUI.Checkbox }) => {
+          const found = classifier.find({ entities: [name] });
+          hider.set(target.value, found);
+        }}">
+      </bim-checkbox>
+    `;
+  });
+  categorySection.append(checkbox);
+}

@@ -18,3 +18,34 @@ body {
 canvas {
   display: block;
 }
+
+.options-menu {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  width: 20%;
+}
+#grid {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+
+  /* display: none; */
+}
+
+.options-menu-visible {
+  display: block;
+}
+
+.phone-menu-toggler {
+  position: absolute;
+  top: 200px;
+  right: 10px;
+}
+
+#container {
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  position: relative;
+}
